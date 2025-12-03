@@ -47,8 +47,7 @@ touch .env.local
 Tambahkan URL dan kunci anonim Supabase Anda ke dalam file tersebut. Pastikan kunci dimulai dengan `NEXT_PUBLIC_` agar dapat diakses oleh kode sisi klien.
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=[https://jyjunbzusfrmaywmndpa.supabase.co](https://jyjunbzusfrmaywmndpa.supabase.co)
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp5anVuYnp1c2ZybWF5d21uZHBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4NDMxMTgsImV4cCI6MjA2OTQxOTExOH0.IQ6yyyR2OpvQj1lIL1yFsWfVNhJIm2_EFt5Pnv4Bd38
+
 ```
 
 ### 4\. Menjalankan Server Pengembangan
