@@ -225,7 +225,7 @@ export default function HomePage() {
 
         // ---- Evaluasi waypoint
         const currentPosition: [number, number] = [payload.new.latitude, payload.new.longitude];
-        const tolerance = 3; // meter (naikkan untuk simulasi)
+        const tolerance = 1.5; // meter (naikkan untuk simulasi)
 
         const map = mapStateRef.current;
         const ms = missionStatusRef.current;
