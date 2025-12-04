@@ -34,50 +34,60 @@ interface MapProps {
   mapState: MapState;
   missionWaypoints: { [key: string]: Waypoints };
   supabase: any;
+
+  // 🔹 NEW: center lintasan dari Supabase (dibaca di HomePage user)
+  centers: { [key: string]: [number, number] };
 }
 
 /** ===================== ICONS ===================== */
 const redBuoyIcon = L.icon({ iconUrl: '/merah.png', iconSize: [10, 10], iconAnchor: [12, 12] });
 const greenBuoyIcon = L.icon({ iconUrl: '/hijau.png', iconSize: [10, 10], iconAnchor: [12, 12] });
 const startIcon = L.icon({ iconUrl: '/start.png', iconSize: [40, 40], iconAnchor: [12, 24] });
-// shipIcon lama masih boleh disimpan kalau mau, tapi yang dipakai buat kapal adalah createShipIcon di bawah
 const shipIcon = L.icon({ iconUrl: '/kapalasli3.png', iconSize: [50, 40], iconAnchor: [25, 20] });
 const Object_surface = L.icon({ iconUrl: '/atas.jpeg', iconSize: [20, 20], iconAnchor: [12, 24] });
 const Object_under = L.icon({ iconUrl: '/bawah.png', iconSize: [20, 20], iconAnchor: [12, 24] });
 // const finish = L.icon({ iconUrl: '/finish.jpg', iconSize: [40, 15], iconAnchor: [12, 24] });
 
-type MissionConfig = {
-  center: [number, number];
+type MissionLabels = {
   latLabels: string[];
   lonLabels: string[];
 };
 
-const MISSION_CONFIG: Record<string, MissionConfig> = {
+// 🔹 Sekarang cuma menyimpan label, tanpa center
+const MISSION_LABELS: Record<string, MissionLabels> = {
   lintasan1: {
-    // -7.765527144208408, 110.37035626576507 = bengkel
-    // -7.769460228520795, 110.38284391635815 = Wisdom
-    center: [-7.9154834, 112.5891244],
     latLabels: ['5', '4', '3', '2', '1'],
     lonLabels: ['A', 'B', 'C', 'D', 'E'],
   },
   lintasan2: {
-    center: [-7.9150524, 112.5888965],
     latLabels: ['5', '4', '3', '2', '1'],
     lonLabels: ['E', 'D', 'C', 'B', 'A'],
   },
 };
 
-// Fallback ke lintasan1 jika tipe tak dikenal
-const getConfig = (missionType: string): MissionConfig =>
-  MISSION_CONFIG[missionType] ?? MISSION_CONFIG['lintasan1'];
+// Ambil config + center berdasarkan lintasan & props centers
+const getConfig = (
+  missionType: string,
+  centers: { [key: string]: [number, number] }
+) => {
+  const labels = MISSION_LABELS[missionType] ?? MISSION_LABELS['lintasan1'];
+  const fallbackCenter: [number, number] = [-7.9154834, 112.5891244];
+  const center = centers[missionType] ?? fallbackCenter;
+
+  return {
+    center,
+    latLabels: labels.latLabels,
+    lonLabels: labels.lonLabels,
+  };
+};
 
 // arah lintasan / grid (0 = utara, 90 = timur)
-const GRID_BEARING_DEG = 150; // samakan dengan arah lintasanmu
+const GRID_BEARING_DEG = 150;
 
 // ukuran area tampilan (dekat grid)
 const VIEW_HALF_SIZE_M = 12.5;
 
-// ukuran area yang boleh di-drag (sedikit lebih luas)
+// ukuran area yang boleh dilihat (sedikit lebih luas)
 const BOUNDS_HALF_SIZE_M = 15;
 
 /** helper: bikin icon kapal dengan rotasi tertentu */
@@ -101,7 +111,7 @@ const createShipIcon = (angleDeg: number): L.DivIcon =>
   });
 
 /** ===================== COMPONENT ===================== */
-const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints, supabase }) => {
+const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints, supabase, centers }) => {
   const mapRef = useRef<L.Map | null>(null);
   const shipMarkerRef = useRef<L.Marker | null>(null);
   const pathRef = useRef<L.Polyline | null>(null);
@@ -138,7 +148,7 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
   };
 
   const drawGrid = (mapInstance: L.Map, missionType: string) => {
-    const { center, latLabels, lonLabels } = getConfig(missionType);
+    const { center, latLabels, lonLabels } = getConfig(missionType, centers);
     const layersToDraw =
       gridLayersRef.current[missionType] ??
       (gridLayersRef.current[missionType] = L.layerGroup());
@@ -248,7 +258,7 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
   useEffect(() => {
     if (mapRef.current) return;
 
-    const { center: initialCenter } = getConfig('lintasan1');
+    const { center: initialCenter } = getConfig('lintasan1', centers);
 
     // area tampilan awal (dekat grid)
     const viewDelta = metersToLatLon(initialCenter[0], VIEW_HALF_SIZE_M);
@@ -305,15 +315,15 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
 
     fetchBuoyData(mapInstance);
 
-    // Example rectangles around each mission center (opsional)
+    // (opsional) rectangle besar di sekitar center masing-masing lintasan
     const deltaLat = 0.1;
     const deltaLon = 0.1;
-    const centers = Object.values(MISSION_CONFIG).map(({ center }) => ({
-      x: center[0],
-      y: center[1],
-    }));
+    const centersArr = Object.keys(MISSION_LABELS).map((k) => {
+      const cfg = getConfig(k, centers);
+      return { x: cfg.center[0], y: cfg.center[1] };
+    });
 
-    centers.forEach(({ x, y }) => {
+    centersArr.forEach(({ x, y }) => {
       const MaxgetBounds: L.LatLngBoundsExpression = [
         [x - (1 + deltaLat), y - (1 + deltaLon)],
         [x + 2 * deltaLat, y + 1 + deltaLon],
@@ -325,13 +335,13 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
         fillOpacity: 1,
       }).addTo(mapInstance);
     });
-  }, []);
+  }, [centers]);
 
   /** ===================== RESPOND TO STATE CHANGES ===================== */
   useEffect(() => {
     if (!mapRef.current || !mapState) return;
 
-    const { center } = getConfig(mapState.view_type);
+    const { center } = getConfig(mapState.view_type, centers);
 
     // area tampilan (dekat grid)
     const viewDelta = metersToLatLon(center[0], VIEW_HALF_SIZE_M);
@@ -347,13 +357,13 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
       [center[0] + boundDelta.dLat, center[1] + boundDelta.dLon]
     );
 
-    // batas drag pakai yang luas
     mapRef.current.setMaxBounds(allowedBounds);
-    // tampilan fokus ke sekitar grid
     mapRef.current.fitBounds(viewBounds);
 
-    // Toggle grid layers per view (layerGroup yang sudah diisi di drawGrid)
+    // 🔹 redraw grid supaya ikut titik tengah terbaru
     Object.values(gridLayersRef.current).forEach((lg) => lg.remove());
+    drawGrid(mapRef.current, mapState.view_type);
+
     const activeGrid =
       gridLayersRef.current[mapState.view_type] ?? gridLayersRef.current['lintasan1'];
     activeGrid.addTo(mapRef.current);
@@ -371,7 +381,7 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
       }
       trackCoordinatesRef.current = [];
     }
-  }, [mapState]);
+  }, [mapState, missionWaypoints, centers]);
 
   /** ===================== NAV (POSISI) ===================== */
   useEffect(() => {
@@ -400,7 +410,7 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
         dashArray: '2, 1',
       }).addTo(mapRef.current);
     }
-  }, [navData, cogData]); // kalau cog berubah sebelum marker ada, icon awal ikut sudut baru
+  }, [navData, cogData]);
 
   /** ===================== COG (ROTASI KAPAL) ===================== */
   useEffect(() => {
