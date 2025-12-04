@@ -35,7 +35,7 @@ interface MapProps {
   missionWaypoints: { [key: string]: Waypoints };
   supabase: any;
 
-  // 🔹 NEW: center lintasan dari Supabase (dibaca di HomePage user)
+  // center lintasan dari Supabase (dibaca di HomePage user)
   centers: { [key: string]: [number, number] };
 }
 
@@ -111,7 +111,14 @@ const createShipIcon = (angleDeg: number): L.DivIcon =>
   });
 
 /** ===================== COMPONENT ===================== */
-const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints, supabase, centers }) => {
+const Map: React.FC<MapProps> = ({
+  navData,
+  cogData,
+  mapState,
+  missionWaypoints,
+  supabase,
+  centers,
+}) => {
   const mapRef = useRef<L.Map | null>(null);
   const shipMarkerRef = useRef<L.Marker | null>(null);
   const pathRef = useRef<L.Polyline | null>(null);
