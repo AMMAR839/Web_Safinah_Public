@@ -289,6 +289,7 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
     const { center } = getConfig(mapState.view_type);
 
     const HALF_SIZE_M = 12.5;
+    const BOUNDS_HALF_SIZE_M = 14;
     const { dLat, dLon } = metersToLatLon(center[0], HALF_SIZE_M);
 
     const bounds = L.latLngBounds(
@@ -296,8 +297,14 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
       [center[0] + dLat, center[1] + dLon]
     );
 
+  const boundDelta = metersToLatLon(initialCenter[0], BOUNDS_HALF_SIZE_M);
+  const allowedBounds = L.latLngBounds(
+    [initialCenter[0] - boundDelta.dLat, initialCenter[1] - boundDelta.dLon],
+    [initialCenter[0] + boundDelta.dLat, initialCenter[1] + boundDelta.dLon]
+  );
+
     mapRef.current.setMaxBounds(bounds);
-    mapRef.current.fitBounds(bounds);
+    mapRef.current.fitBounds(allowedBounds);
 
     // Toggle grid layers per view (layerGroup yang sudah diisi di drawGrid)
     Object.values(gridLayersRef.current).forEach((lg) => lg.remove());
