@@ -305,6 +305,11 @@ export default function HomePage() {
 
         if (!waypoints) return;
 
+        if (ms?.mission_persiapan === 'belum') {
+          console.log('[NEAR] PERSIAPAN (auto proses)');
+          updateMissionStatusInSupabase('mission_persiapan', 'proses');
+        }
+
         if (waypoints.start && isNear(currentPosition, waypoints.start, tolerance)) {
           console.log('[NEAR] START');
           updateMissionStatusInSupabase('mission_persiapan', 'selesai');
