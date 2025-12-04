@@ -40,6 +40,7 @@ interface MapProps {
 const redBuoyIcon = L.icon({ iconUrl: '/merah.png', iconSize: [10, 10], iconAnchor: [12, 12] });
 const greenBuoyIcon = L.icon({ iconUrl: '/hijau.png', iconSize: [10, 10], iconAnchor: [12, 12] });
 const startIcon = L.icon({ iconUrl: '/start.png', iconSize: [40, 40], iconAnchor: [12, 24] });
+// shipIcon lama masih boleh disimpan kalau mau, tapi yang dipakai buat kapal adalah createShipIcon di bawah
 const shipIcon = L.icon({ iconUrl: '/kapalasli3.png', iconSize: [50, 40], iconAnchor: [25, 20] });
 const Object_surface = L.icon({ iconUrl: '/atas.jpeg', iconSize: [20, 20], iconAnchor: [12, 24] });
 const Object_under = L.icon({ iconUrl: '/bawah.png', iconSize: [20, 20], iconAnchor: [12, 24] });
@@ -78,6 +79,26 @@ const VIEW_HALF_SIZE_M = 12.5;
 
 // ukuran area yang boleh di-drag (sedikit lebih luas)
 const BOUNDS_HALF_SIZE_M = 15;
+
+/** helper: bikin icon kapal dengan rotasi tertentu */
+const createShipIcon = (angleDeg: number): L.DivIcon =>
+  L.divIcon({
+    className: 'ship-icon-wrapper',
+    html: `
+      <img
+        src="/kapalasli3.png"
+        style="
+          width: 50px;
+          height: 40px;
+          transform: rotate(${angleDeg}deg);
+          transform-origin: center center;
+          display: block;
+        "
+      />
+    `,
+    iconSize: [50, 40],
+    iconAnchor: [25, 20],
+  });
 
 /** ===================== COMPONENT ===================== */
 const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints, supabase }) => {
@@ -352,21 +373,19 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
     }
   }, [mapState]);
 
-  /** ===================== NAV & COG ===================== */
+  /** ===================== NAV (POSISI) ===================== */
   useEffect(() => {
     if (!mapRef.current || !navData) return;
 
     const latestPosition: [number, number] = [navData.latitude, navData.longitude];
 
     if (shipMarkerRef.current) {
-      (shipMarkerRef.current as any).setLatLng(latestPosition);
+      shipMarkerRef.current.setLatLng(latestPosition);
     } else {
-      shipMarkerRef.current = L.marker(latestPosition, { icon: shipIcon }).addTo(mapRef.current);
-      if (cogData) (shipMarkerRef.current as any).setRotationAngle(cogData.cog);
-    }
-
-    if (cogData && shipMarkerRef.current) {
-      (shipMarkerRef.current as any).setRotationAngle(cogData.cog);
+      const initialAngle = cogData?.cog ?? 0;
+      shipMarkerRef.current = L.marker(latestPosition, {
+        icon: createShipIcon(initialAngle),
+      }).addTo(mapRef.current);
     }
 
     trackCoordinatesRef.current.push(latestPosition);
@@ -381,7 +400,14 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
         dashArray: '2, 1',
       }).addTo(mapRef.current);
     }
-  }, [navData, cogData]);
+  }, [navData, cogData]); // kalau cog berubah sebelum marker ada, icon awal ikut sudut baru
+
+  /** ===================== COG (ROTASI KAPAL) ===================== */
+  useEffect(() => {
+    if (!shipMarkerRef.current || !cogData) return;
+
+    shipMarkerRef.current.setIcon(createShipIcon(cogData.cog));
+  }, [cogData]);
 
   return <div id="map" className="map" style={{ width: '100%', height: '100%' }} />;
 };
