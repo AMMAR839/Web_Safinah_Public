@@ -55,13 +55,12 @@ const MISSION_CONFIG: Record<string, MissionConfig> = {
   lintasan1: {
     // -7.765527144208408, 110.37035626576507 = bengkel
     // -7.769460228520795, 110.38284391635815 = Wisdom
-    //
-    center: [-7.9154834,112.5891244],
+    center: [-7.9154834, 112.5891244],
     latLabels: ['5', '4', '3', '2', '1'],
     lonLabels: ['A', 'B', 'C', 'D', 'E'],
   },
   lintasan2: {
-    center: [-7.9150524,112.5888965],
+    center: [-7.9150524, 112.5888965],
     latLabels: ['5', '4', '3', '2', '1'],
     lonLabels: ['E', 'D', 'C', 'B', 'A'],
   },
@@ -73,6 +72,12 @@ const getConfig = (missionType: string): MissionConfig =>
 
 // arah lintasan / grid (0 = utara, 90 = timur)
 const GRID_BEARING_DEG = 150; // samakan dengan arah lintasanmu
+
+// ukuran area tampilan (dekat grid)
+const VIEW_HALF_SIZE_M = 12.5;
+
+// ukuran area yang boleh di-drag (sedikit lebih luas)
+const BOUNDS_HALF_SIZE_M = 14;
 
 /** ===================== COMPONENT ===================== */
 const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints, supabase }) => {
@@ -222,7 +227,21 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
   useEffect(() => {
     if (mapRef.current) return;
 
-    const initialCenter = getConfig('lintasan1').center;
+    const { center: initialCenter } = getConfig('lintasan1');
+
+    // area tampilan awal (dekat grid)
+    const viewDelta = metersToLatLon(initialCenter[0], VIEW_HALF_SIZE_M);
+    const viewBounds = L.latLngBounds(
+      [initialCenter[0] - viewDelta.dLat, initialCenter[1] - viewDelta.dLon],
+      [initialCenter[0] + viewDelta.dLat, initialCenter[1] + viewDelta.dLon]
+    );
+
+    // area batas drag (lebih luas sedikit)
+    const boundDelta = metersToLatLon(initialCenter[0], BOUNDS_HALF_SIZE_M);
+    const allowedBounds = L.latLngBounds(
+      [initialCenter[0] - boundDelta.dLat, initialCenter[1] - boundDelta.dLon],
+      [initialCenter[0] + boundDelta.dLat, initialCenter[1] + boundDelta.dLon]
+    );
 
     const mapInstance = (L as any).map('map', {
       center: initialCenter,
@@ -233,6 +252,8 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
       boxZoom: false,
       touchZoom: false,
       zoomControl: false,
+
+      maxBounds: allowedBounds,
       maxBoundsViscosity: 1.0,
 
       // opsi dari leaflet-rotate
@@ -253,6 +274,9 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
     // putar map sekali
     const desiredBearing = 120; // derajat, searah jarum jam dari utara
     (mapInstance as any).setBearing(desiredBearing);
+
+    // tampilan awal fokus ke sekitar grid
+    mapInstance.fitBounds(viewBounds);
 
     // gambar grid untuk kedua lintasan (layerGroup-nya disiapkan)
     drawGrid(mapInstance, 'lintasan1');
@@ -288,23 +312,24 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
 
     const { center } = getConfig(mapState.view_type);
 
-    const HALF_SIZE_M = 12.5;
-    const BOUNDS_HALF_SIZE_M = 14;
-    const { dLat, dLon } = metersToLatLon(center[0], HALF_SIZE_M);
-
-    const bounds = L.latLngBounds(
-      [center[0] - dLat, center[1] - dLon],
-      [center[0] + dLat, center[1] + dLon]
+    // area tampilan (dekat grid)
+    const viewDelta = metersToLatLon(center[0], VIEW_HALF_SIZE_M);
+    const viewBounds = L.latLngBounds(
+      [center[0] - viewDelta.dLat, center[1] - viewDelta.dLon],
+      [center[0] + viewDelta.dLat, center[1] + viewDelta.dLon]
     );
 
-  const boundDelta = metersToLatLon(initialCenter[0], BOUNDS_HALF_SIZE_M);
-  const allowedBounds = L.latLngBounds(
-    [initialCenter[0] - boundDelta.dLat, initialCenter[1] - boundDelta.dLon],
-    [initialCenter[0] + boundDelta.dLat, initialCenter[1] + boundDelta.dLon]
-  );
+    // area batas drag (lebih luas)
+    const boundDelta = metersToLatLon(center[0], BOUNDS_HALF_SIZE_M);
+    const allowedBounds = L.latLngBounds(
+      [center[0] - boundDelta.dLat, center[1] - boundDelta.dLon],
+      [center[0] + boundDelta.dLat, center[1] + boundDelta.dLon]
+    );
 
-    mapRef.current.setMaxBounds(bounds);
-    mapRef.current.fitBounds(allowedBounds);
+    // batas drag pakai yang luas
+    mapRef.current.setMaxBounds(allowedBounds);
+    // tampilan fokus ke sekitar grid
+    mapRef.current.fitBounds(viewBounds);
 
     // Toggle grid layers per view (layerGroup yang sudah diisi di drawGrid)
     Object.values(gridLayersRef.current).forEach((lg) => lg.remove());
