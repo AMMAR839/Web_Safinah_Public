@@ -77,7 +77,7 @@ const GRID_BEARING_DEG = 150; // samakan dengan arah lintasanmu
 const VIEW_HALF_SIZE_M = 12.5;
 
 // ukuran area yang boleh di-drag (sedikit lebih luas)
-const BOUNDS_HALF_SIZE_M = 14;
+const BOUNDS_HALF_SIZE_M = 15;
 
 /** ===================== COMPONENT ===================== */
 const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints, supabase }) => {
