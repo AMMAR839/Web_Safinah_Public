@@ -230,9 +230,9 @@ const Map: React.FC<MapProps> = ({ navData, cogData, mapState, missionWaypoints,
       scrollWheelZoom: false,
       dragging: true,
       doubleClickZoom: false,
-      boxZoom: true,
+      boxZoom: false,
       touchZoom: false,
-      zoomControl: true,
+      zoomControl: false,
       maxBoundsViscosity: 1.0,
 
       // opsi dari leaflet-rotate
