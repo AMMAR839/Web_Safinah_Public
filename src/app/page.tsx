@@ -294,7 +294,7 @@ export default function HomePage() {
           payload.new.latitude,
           payload.new.longitude,
         ];
-        const tolerance = 0.5;
+        const tolerance = 1.5;
 
         const map = mapStateRef.current;
         const ms = missionStatusRef.current;
@@ -304,10 +304,6 @@ export default function HomePage() {
         console.log('[NAV] pos:', currentPosition, 'view:', map?.view_type, 'wp:', waypoints);
 
         if (!waypoints) return;
-
-        if (waypoints) {
-          updateMissionStatusInSupabase('mission_persiapan', 'persiapan');
-        }
 
         if (waypoints.start && isNear(currentPosition, waypoints.start, tolerance)) {
           console.log('[NEAR] START');
