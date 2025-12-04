@@ -53,7 +53,7 @@ type MissionLabels = {
   lonLabels: string[];
 };
 
-// 🔹 Sekarang cuma menyimpan label, tanpa center
+// 🔹 Cuma label, center diambil dari Supabase
 const MISSION_LABELS: Record<string, MissionLabels> = {
   lintasan1: {
     latLabels: ['5', '4', '3', '2', '1'],
@@ -128,6 +128,7 @@ const Map: React.FC<MapProps> = ({
     lintasan2: L.layerGroup(),
   });
   const waypointLayersRef = useRef<LayerGroup>(L.layerGroup());
+  const buoysLayerRef = useRef<LayerGroup>(L.layerGroup());
 
   const metersToLatLon = (centerLat: number, meters: number): { dLat: number; dLon: number } => {
     const metersPerDegLat = 111320;
@@ -247,18 +248,25 @@ const Map: React.FC<MapProps> = ({
     waypointLayersRef.current.addTo(mapInstance);
   };
 
-  const fetchBuoyData = async (mapInstance: L.Map) => {
+  const drawBuoys = async (mapInstance: L.Map) => {
+    buoysLayerRef.current.clearLayers();
+
     const { data: buoys, error } = await supabase.from('buoys').select('*');
     if (error) {
       console.error('Failed to fetch buoy data:', error);
       return;
     }
+
+    if (!buoys) return;
+
     buoys.forEach((buoy: { color: string; latitude: number; longitude: number }) => {
       const icon = buoy.color === 'red' ? redBuoyIcon : greenBuoyIcon;
       L.marker([buoy.latitude, buoy.longitude], { icon })
-        .addTo(mapInstance)
+        .addTo(buoysLayerRef.current)
         .bindPopup(`Pelampung ${buoy.color}`);
     });
+
+    buoysLayerRef.current.addTo(mapInstance);
   };
 
   /** ===================== INIT MAP ===================== */
@@ -320,7 +328,8 @@ const Map: React.FC<MapProps> = ({
     drawGrid(mapInstance, 'lintasan1');
     drawGrid(mapInstance, 'lintasan2');
 
-    fetchBuoyData(mapInstance);
+    // Buoys awal
+    drawBuoys(mapInstance);
 
     // (opsional) rectangle besar di sekitar center masing-masing lintasan
     const deltaLat = 0.1;
@@ -343,6 +352,27 @@ const Map: React.FC<MapProps> = ({
       }).addTo(mapInstance);
     });
   }, [centers]);
+
+  /** ===================== Realtime BUOYS ===================== */
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    const channel = supabase
+      .channel('buoys_changes_user')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'buoys' },
+        async () => {
+          if (!mapRef.current) return;
+          await drawBuoys(mapRef.current);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase]);
 
   /** ===================== RESPOND TO STATE CHANGES ===================== */
   useEffect(() => {

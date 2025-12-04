@@ -36,7 +36,7 @@ function buildWaypointMap(rows: Array<{
   }, {} as Record<string, Waypoints>);
 }
 
-interface NavData {
+interface NavDataType {
   latitude: number;
   longitude: number;
   timestamp: string;
@@ -66,8 +66,7 @@ interface MapState {
   is_refreshed: boolean;
 }
 
-// 🔹 tipe untuk center lintasan
-type CenterMap = { [key: string]: [number, number] };
+type CenterMap = Record<string, [number, number]>;
 
 async function resetMissionStatus() {
   try {
@@ -95,7 +94,7 @@ async function resetMissionStatus() {
 }
 
 export default function HomePage() {
-  const [navData, setNavData] = useState<NavData | null>(null);
+  const [navData, setNavData] = useState<NavDataType | null>(null);
   const [cogData, setCogData] = useState<CogData | null>(null);
   const [missionImages, setMissionImages] = useState<MissionImage[]>([]);
   const [missionStatus, setMissionStatus] = useState<MissionStatus | null>(null);
@@ -108,7 +107,7 @@ export default function HomePage() {
   const [missionWaypoints, setMissionWaypoints] = useState<Record<string, Waypoints>>({});
   const [controlsEnabled, setControlsEnabled] = useState<boolean>(false);
 
-  // 🔹 state untuk center lintasan (lintasan1, lintasan2) dari tabel Center_Lintasan
+  // center dari Supabase
   const [centers, setCenters] = useState<CenterMap>({});
 
   const missionWaypointsRef = useRef<Record<string, Waypoints>>({});
@@ -118,19 +117,14 @@ export default function HomePage() {
   useEffect(() => {
     missionWaypointsRef.current = missionWaypoints;
   }, [missionWaypoints]);
-
   useEffect(() => {
     mapStateRef.current = mapState;
   }, [mapState]);
-
   useEffect(() => {
     missionStatusRef.current = missionStatus;
   }, [missionStatus]);
 
-  const updateMissionStatusInSupabase = async (
-    missionId: keyof MissionStatus,
-    status: string
-  ) => {
+  const updateMissionStatusInSupabase = async (missionId: keyof MissionStatus, status: string) => {
     try {
       const updateData = { [missionId]: status };
       const { data, error } = await supabase
@@ -150,57 +144,6 @@ export default function HomePage() {
       console.error('Gagal memperbarui status misi:', error);
     }
   };
-
-  // 🔹 Fetch CENTER_LINTASAN (+ realtime) untuk user
-  useEffect(() => {
-    const fetchCenters = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('Center_Lintasan')
-          .select('"Lintasan", "Latitude", "Longititude"');
-
-        if (error) throw error;
-
-        const next: CenterMap = {};
-
-        (data || []).forEach((row: any) => {
-          const key = row.Lintasan as string; // 'lintasan1' / 'lintasan2'
-          const lat = row.Latitude as number | null;
-          const lon = row.Longititude as number | null;
-          if (lat != null && lon != null) {
-            next[key] = [lat, lon];
-          }
-        });
-
-        // fallback kalau belum ada di DB
-        if (!next['lintasan1']) next['lintasan1'] = [-7.9154834, 112.5891244];
-        if (!next['lintasan2']) next['lintasan2'] = [-7.9150524, 112.5888965];
-
-        setCenters(next);
-      } catch (err) {
-        console.error('Gagal load Center_Lintasan (user):', err);
-      }
-    };
-
-    // load awal
-    fetchCenters();
-
-    // realtime: kalau admin update Center_Lintasan, user ikut update
-    const centerSub = supabase
-      .channel('center_lintasan_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'Center_Lintasan' },
-        () => {
-          fetchCenters();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(centerSub);
-    };
-  }, []);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -267,13 +210,49 @@ export default function HomePage() {
       }
     };
 
+    const fetchCenters = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('Center_Lintasan')
+          .select('"Lintasan", "Latitude", "Longititude"');
+
+        if (error) throw error;
+
+        const nextCenters: CenterMap = {};
+
+        if (data && data.length > 0) {
+          data.forEach((row: any) => {
+            const key = row.Lintasan as string; // contoh: 'lintasan1'
+            const lat = row.Latitude as number | null;
+            const lon = row.Longititude as number | null;
+            if (lat != null && lon != null) {
+              nextCenters[key] = [lat, lon];
+            }
+          });
+        }
+
+        // fallback kalau belum ada data sama sekali
+        if (!nextCenters['lintasan1']) {
+          nextCenters['lintasan1'] = [-7.9154834, 112.5891244];
+        }
+        if (!nextCenters['lintasan2']) {
+          nextCenters['lintasan2'] = [-7.9150524, 112.5888965];
+        }
+
+        setCenters(nextCenters);
+      } catch (err) {
+        console.error('Gagal memuat Center_Lintasan:', err);
+      }
+    };
+
     // Fetch awal
     fetchWaypoints();
+    fetchCenters();
     fetchInitialData();
 
     // Realtime: mission_waypoints
     const waypointsSub = supabase
-      .channel('mission_waypoints_changes')
+      .channel('mission_waypoints_changes_user')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mission_waypoints' },
@@ -286,118 +265,113 @@ export default function HomePage() {
       )
       .subscribe();
 
-    // Realtime: nav_data → evaluasi waypoint
-    const navSubscription = supabase
-      .channel('nav_data_changes')
+    // Realtime: center lintasan
+    const centersSub = supabase
+      .channel('center_lintasan_changes_user')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'nav_data' },
-        (payload) => {
-          setNavData((prev) => {
-            if (prev?.timestamp) {
-              const prevTime = new Date(prev.timestamp).getTime();
-              const newTime = new Date(payload.new.timestamp).getTime();
-              setUpdateIntervalMs(newTime - prevTime);
-            }
-            return payload.new as NavData;
-          });
-
-          const currentPosition: [number, number] = [
-            payload.new.latitude,
-            payload.new.longitude,
-          ];
-          const tolerance = 1.5;
-
-          const map = mapStateRef.current;
-          const ms = missionStatusRef.current;
-          const wpAll = missionWaypointsRef.current;
-          const waypoints = wpAll?.[map?.view_type];
-
-          console.log('[NAV] pos:', currentPosition, 'view:', map?.view_type, 'wp:', waypoints);
-
-          if (!waypoints) return;
-
-          if (waypoints.start && isNear(currentPosition, waypoints.start, tolerance)) {
-            console.log('[NEAR] START');
-            updateMissionStatusInSupabase('mission_persiapan', 'selesai');
-            updateMissionStatusInSupabase('mission_start', 'selesai');
-            updateMissionStatusInSupabase('mission_buoys', 'proses');
-          }
-
-          if (waypoints.buoys && isNear(currentPosition, waypoints.buoys, tolerance)) {
-            console.log('[NEAR] BUOYS');
-            updateMissionStatusInSupabase('mission_buoys', 'selesai');
-          }
-
-          if (
-            waypoints.image_surface &&
-            isNear(currentPosition, waypoints.image_surface, tolerance)
-          ) {
-            console.log('[NEAR] IMAGE_SURFACE');
-            updateMissionStatusInSupabase('image_atas', 'proses');
-          }
-
-          if (
-            waypoints.finish &&
-            isNear(currentPosition, waypoints.finish, tolerance) &&
-            ms?.image_bawah === 'selesai'
-          ) {
-            console.log('[NEAR] FINISH (image_bawah sudah selesai)');
-            updateMissionStatusInSupabase('mission_finish', 'selesai');
-          }
+        { event: '*', schema: 'public', table: 'Center_Lintasan' },
+        async () => {
+          await fetchCenters();
         }
       )
+      .subscribe();
+
+    // Realtime: nav_data → evaluasi waypoint
+    const navSubscription = supabase
+      .channel('nav_data_changes_user')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'nav_data' }, (payload) => {
+        setNavData((prev) => {
+          if (prev?.timestamp) {
+            const prevTime = new Date(prev.timestamp).getTime();
+            const newTime = new Date(payload.new.timestamp).getTime();
+            setUpdateIntervalMs(newTime - prevTime);
+          }
+          return payload.new as NavDataType;
+        });
+
+        const currentPosition: [number, number] = [
+          payload.new.latitude,
+          payload.new.longitude,
+        ];
+        const tolerance = 0.5;
+
+        const map = mapStateRef.current;
+        const ms = missionStatusRef.current;
+        const wpAll = missionWaypointsRef.current;
+        const waypoints = wpAll?.[map?.view_type];
+
+        console.log('[NAV] pos:', currentPosition, 'view:', map?.view_type, 'wp:', waypoints);
+
+        if (!waypoints) return;
+
+        if (waypoints) {
+          updateMissionStatusInSupabase('mission_persiapan', 'persiapan');
+        }
+
+        if (waypoints.start && isNear(currentPosition, waypoints.start, tolerance)) {
+          console.log('[NEAR] START');
+          updateMissionStatusInSupabase('mission_persiapan', 'selesai');
+          updateMissionStatusInSupabase('mission_start', 'selesai');
+          updateMissionStatusInSupabase('mission_buoys', 'proses');
+        }
+
+        if (waypoints.buoys && isNear(currentPosition, waypoints.buoys, tolerance)) {
+          console.log('[NEAR] BUOYS');
+          updateMissionStatusInSupabase('mission_buoys', 'selesai');
+        }
+
+        if (
+          waypoints.image_surface &&
+          isNear(currentPosition, waypoints.image_surface, tolerance)
+        ) {
+          console.log('[NEAR] IMAGE_SURFACE');
+          updateMissionStatusInSupabase('image_atas', 'proses');
+        }
+
+        if (
+          waypoints.finish &&
+          isNear(currentPosition, waypoints.finish, tolerance) &&
+          ms?.image_bawah === 'selesai'
+        ) {
+          console.log('[NEAR] FINISH (image_bawah sudah selesai)');
+          updateMissionStatusInSupabase('mission_finish', 'selesai');
+        }
+      })
       .subscribe();
 
     const cogSubscription = supabase
-      .channel('cog_data_changes')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'cog_data' },
-        (payload) => {
-          setCogData(payload.new as CogData);
-        }
-      )
+      .channel('cog_data_changes_user')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'cog_data' }, (payload) => {
+        setCogData(payload.new as CogData);
+      })
       .subscribe();
 
     const imageSubscription = supabase
-      .channel('mission_images_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'image_mission' },
-        async () => {
-          const { data: images, error } = await supabase
-            .from('image_mission')
-            .select('*');
-          if (!error) setMissionImages((images || []) as MissionImage[]);
-        }
-      )
+      .channel('mission_images_changes_user')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'image_mission' }, async () => {
+        const { data: images, error } = await supabase.from('image_mission').select('*');
+        if (!error) setMissionImages((images || []) as MissionImage[]);
+      })
       .subscribe();
 
     const missionSubscription = supabase
-      .channel('mission_log_changes')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'data_mission' },
-        (payload) => {
-          setMissionStatus(payload.new as MissionStatus);
-        }
-      )
+      .channel('mission_log_changes_user')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'data_mission' }, (payload) => {
+        setMissionStatus(payload.new as MissionStatus);
+      })
       .subscribe();
 
     const mapSubscription = supabase
-      .channel('map_state_changes')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'map_state' },
-        (payload) => {
-          setMapState(payload.new as MapState);
-        }
-      )
+      .channel('map_state_changes_user')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'map_state' }, (payload) => {
+        setMapState(payload.new as MapState);
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(waypointsSub);
+      supabase.removeChannel(centersSub);
       supabase.removeChannel(navSubscription);
       supabase.removeChannel(cogSubscription);
       supabase.removeChannel(imageSubscription);
@@ -408,10 +382,9 @@ export default function HomePage() {
 
   const handleSelectLintasan = async (lintasan: string) => {
     try {
-      const { error } = await supabase
-        .from('map_state')
-        .update({ view_type: lintasan })
-        .eq('id', 1);
+      // user tidak boleh ubah, jadi kondisi pakai controlsEnabled
+      if (!controlsEnabled) return;
+      const { error } = await supabase.from('map_state').update({ view_type: lintasan }).eq('id', 1);
       if (error) throw error;
     } catch (error: any) {
       console.error('Failed to update map state:', error);
@@ -421,6 +394,7 @@ export default function HomePage() {
   const [clicked, setClicked] = useState(false);
 
   const handleRefresh = async () => {
+    if (!controlsEnabled) return;
     setClicked(true);
     setTimeout(() => setClicked(false), 300);
     resetMissionStatus();
@@ -447,6 +421,7 @@ export default function HomePage() {
           />
           <MissionLog status={missionStatus} />
         </div>
+
         <img src="/ornamen.png" alt="hiasan" className="ornamen" />
       </section>
 
@@ -467,9 +442,7 @@ export default function HomePage() {
         <div className={`mapControls ${!controlsEnabled ? 'no-refresh' : ''}`}>
           <button
             id="lintasan1"
-            className={`tombolLintasan ${
-              mapState.view_type === 'lintasan1' ? 'aktif' : ''
-            }`}
+            className={`tombolLintasan ${mapState.view_type === 'lintasan1' ? 'aktif' : ''}`}
             onClick={controlsEnabled ? () => handleSelectLintasan('lintasan1') : undefined}
           >
             Lintasan A
@@ -477,9 +450,7 @@ export default function HomePage() {
 
           <button
             id="lintasan2"
-            className={`tombolLintasan ${
-              mapState.view_type === 'lintasan2' ? 'aktif' : ''
-            }`}
+            className={`tombolLintasan ${mapState.view_type === 'lintasan2' ? 'aktif' : ''}`}
             onClick={controlsEnabled ? () => handleSelectLintasan('lintasan2') : undefined}
           >
             Lintasan B
