@@ -441,32 +441,46 @@ body {
   }
 }
 
-/* HP / layar kecil */
 @media (max-width: 768px) {
-  /* Di HP, jangan pakai grid, kita bikin flow biasa (stack ke bawah) */
-  .main {
-    display: block;      /* <— ini penting: semua section jadi vertikal */
-    padding: 8px;
-    min-height: auto;
+  /* Biar tinggi halaman mengikuti konten, bukan "dikunci" 100% layar */
+  html,
+  body {
+    height: auto;
   }
 
+  /* Di HP: layout 1 kolom, konten disusun dari atas ke bawah */
+  .main {
+    display: block;             /* bukan grid lagi */
+    padding: 8px;
+    min-height: auto;           /* jangan pakai calc(100vh - 60px) di HP */
+  }
+
+  /* Biar tiap section ada jarak sedikit */
   .gabungan,
   .imagesSection,
   .mapSection {
     margin-bottom: 8px;
   }
 
-  /* biar konten di dalam tetap bisa scroll kalau kepanjangan */
+  /* ⚠️ INI PALING PENTING:
+     MATIKAN scroll di dalam container, biar yang scroll BODY, bukan kotaknya */
+  .gabungan {
+    overflow: visible;
+  }
+
   .gabungan-scroll {
-    max-height: 60vh;    /* batas tinggi, boleh kamu ubah */
-    overflow-y: auto;    /* inner scroll tetap ADA di HP */
+    overflow-y: visible;        /* tadinya auto */
+    max-height: none;
+    padding-right: 0;           /* nggak perlu ruang untuk scrollbar */
   }
 
   .imagesSection {
-    max-height: 60vh;
-    overflow-y: auto;
+    overflow: visible;          /* tadinya auto */
+    height: auto;
+    max-height: none;
   }
 
+  /* Map tetap kelihatan enak */
   .map {
     min-height: 260px;
     height: 260px;
