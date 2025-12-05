@@ -422,6 +422,46 @@
     }
   }
 
-  
+  @media (max-width: 768px) {
+  /* Biar tinggi halaman nggak dipaksa ngepas viewport */
+  html,
+  body {
+    height: auto;
+  }
+
+  .main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    min-height: auto;     /* jangan pakai 100vh - 60px di HP */
+  }
+
+  /* Gabungan: biar nggak inner-scroll lagi */
+  .gabungan {
+    max-height: none;
+  }
+
+  .gabungan-scroll {
+    overflow-y: visible;  /* matikan scroll di dalam */
+    max-height: none;
+    padding-right: 0;     /* nggak perlu space scrollbar */
+  }
+
+  /* Bagian gambar juga jangan inner scroll */
+  .imagesSection {
+    overflow: visible;
+  }
+
+  /* Map section biar ikut konten aja */
+  .mapSection {
+    min-height: auto;
+  }
+
+  /* Map boleh dikasih tinggi fix supaya tetap enak dilihat */
+  .map {
+    min-height: 260px;
+    height: 260px;
+  }
+}
+
 
   
