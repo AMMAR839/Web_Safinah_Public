@@ -441,46 +441,49 @@ body {
   }
 }
 
-@media (max-width: 768px) {
-  /* Biar tinggi halaman mengikuti konten, bukan "dikunci" 100% layar */
+  /* Di HP: layout 1 kolom, konten disusun dari atas ke bawah */
+  @media (max-width: 768px) {
+  /* HANYA DI HP: tinggi halaman ikut konten (boleh panjang, bisa scroll) */
   html,
   body {
     height: auto;
   }
 
-  /* Di HP: layout 1 kolom, konten disusun dari atas ke bawah */
+  /* Di HP, layout jadi 1 kolom ke bawah */
   .main {
-    display: block;             /* bukan grid lagi */
+    display: block;          /* bukan grid lagi di HP */
     padding: 8px;
-    min-height: auto;           /* jangan pakai calc(100vh - 60px) di HP */
+    min-height: auto;        /* override min-height desktop */
   }
 
-  /* Biar tiap section ada jarak sedikit */
+  /* Kasih jarak antar section */
   .gabungan,
   .imagesSection,
   .mapSection {
     margin-bottom: 8px;
   }
 
-  /* ⚠️ INI PALING PENTING:
-     MATIKAN scroll di dalam container, biar yang scroll BODY, bukan kotaknya */
+  /* ⬇️ PENTING: matikan scroll di dalam container di HP */
   .gabungan {
-    overflow: visible;
+    overflow: visible;       /* override dari overflow: hidden; */
   }
 
   .gabungan-scroll {
-    overflow-y: visible;        /* tadinya auto */
+    overflow-y: visible;     /* tadinya auto, sekarang ngikut tinggi konten */
     max-height: none;
-    padding-right: 0;           /* nggak perlu ruang untuk scrollbar */
+    padding-right: 0;
   }
 
   .imagesSection {
-    overflow: visible;          /* tadinya auto */
+    overflow: visible;       /* matikan inner scroll juga */
     height: auto;
     max-height: none;
   }
 
-  /* Map tetap kelihatan enak */
+  .mapSection {
+    min-height: auto;
+  }
+
   .map {
     min-height: 260px;
     height: 260px;
@@ -496,3 +499,4 @@ body {
     margin-left: 0;
   }
 }
+
